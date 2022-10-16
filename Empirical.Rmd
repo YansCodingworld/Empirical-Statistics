@@ -1,0 +1,176 @@
+---
+title: "empirical"
+author: "Lorraine Jiang"
+date: "2/25/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Question 1a
+```{r}
+getwd()
+library(KernSmooth)
+library(tidyverse)
+
+#1a
+#read table
+andro2 <- read.table("andro2.txt", header = TRUE)
+signal <- andro2$Signal
+t <- andro2$Time
+# 35 points
+points_35 <- subset(signal, between(t, 191.5, 208.5))
+# mean sd variance of the 35 points
+mean_35<- mean(points_35)
+mean_35
+sd_35 <- sd(points_35)
+sd_35
+var_35 <- sd_35^2
+var_35
+# value of the mean function
+ssquared35 <- 1/34*sum((points_35-mean_35)^2)
+ssquared35
+
+# 105 points, we conduct the same procedure as the first did
+points_105 <- subset(signal, between(t, 174, 226))
+# mean sd variance of the 105 points
+mean_105 <-mean(points_105)
+sd_105<-sd(points_105)
+var_105 <- sd_105^2
+mean_105 
+sd_105
+var_105
+
+ssquared105 <- 1/104*sum((points_105-mean_105)^2)
+ssquared105
+
+#95% CI for 35 points, we lose one degrees of freedom
+t1<- qt(0.975,34) #t = 2.032245
+mean_35 - (t1*sd_35/sqrt(35)) #lower
+mean_35 + (t1*sd_35/sqrt(35)) #upper
+#95% CI for 105 points
+t2<- qt(0.975,104) #t= 1.983038
+mean_105 - (t2*sd_105/sqrt(104)) #lower
+mean_105 + (t2*sd_105/sqrt(104)) #upper
+```
+The value of the mean function at time 200 by first averaging the 35 points and 105 points is 0.01035496 and 0.00514793 respectively.The 95% interval for the 35 points and 105 points are [-0.01238412,0.05752698]&[-0.04499943, -0.01709581].
+
+(b). The bias is not accounted for in my 95% confidence intervals from part(a) because the my confidence interval only explains random error, nothing to do with bias. Specifically, a larger variable will lead to a wider CI and larger margin of error; a smaller variable will cause a tighter CI and smaller margin of error.
+
+
+(c)
+```{r}
+# we chose the bandwidth = 2
+signal <- andro2$Signal
+time <- andro2$Time
+nwfit <- function(t, x, y, bw){
+  GausK <- dnorm(x, mean = t, sd = bw)
+  sum(y*GausK)/sum(GausK)
+}
+nw.hat <- sapply(time, nwfit, x = time, y = signal, bw = 2)
+plot(time, signal, cex = 0.5)
+lines(time, nw.hat, type = "l", col = "red", ylab = "NW")
+
+```
+
+(d)
+```{r}
+plot(time, signal, cex = 0.5)
+loc.fit1 <- locpoly(x=time, y=signal, degree = 1, bandwidth = 2)
+loc.fit2 <- locpoly(x=time, y=signal, degree = 1, bandwidth = 3)
+loc.fit3 <- locpoly(x=time, y=signal, degree = 1, bandwidth = 5)
+lines(loc.fit1$x, loc.fit1$y, type = "l", col = "red", ylab = "local regression")
+lines(loc.fit2$x, loc.fit2$y, type = "l", col = "green", ylab = "local regression")
+lines(loc.fit3$x, loc.fit3$y, type = "l", col = "blue", ylab = "local regression")
+```
+
+(e)
+```{r}
+library(IDPmisc)
+peak1 <- peaks(loc.fit1$x, loc.fit1$y)
+p1<- mean(diff(peak1$x[-1]))
+peak2 <- peaks(loc.fit2$x, loc.fit2$y)
+p2 <- mean(diff(peak2$x))
+peak3 <- peaks(loc.fit3$x, loc.fit3$y)
+p3 <- mean(diff(peak3$x[-1]))
+p1
+p2
+p3
+```
+The average amount of time between the peaks is 69.43125
+
+Question 2(a)
+```{r}
+#read table
+GermanProduction <- read_table2("GermProd.txt")
+#extract month and production separately
+month <- GermanProduction$month
+production <- GermanProduction$production
+# fit a line by Nadaraya–Watson estimator
+nw.hat <- sapply(month, nwfit, x = month, y = production, bw = 24)
+ggplot(data = GermanProduction, aes(x=month, y=production)) + geom_point() +
+  geom_line(aes(month, nw.hat, color = "NW")) ->p1
+```
+
+(b)\
+NW estimator is given by
+\
+
+The red curve deviates to the data in the head and tails, where exist bias at the boundary. According to the formula, the NW estimator is inconsistent at the boundaries as observations are not corresponding to the estimation one by one.
+
+(c)
+```{r}
+# Local Regression Fit
+loc.fit <- locpoly(month, production, degree = 1, bandwidth = 24)
+ggplot(GermanProduction, aes(x = month, y = production)) +
+  geom_point() +
+  geom_line(aes(month, nw.hat, color = "NW"), size = 1) +
+  geom_line(data = as.data.frame(loc.fit), aes(x, y, color = "local-linear"))
+
+loc.fit2 <- locpoly(month, production, degree = 2, bandwidth = 24)
+p2 = p1 + geom_line(aes(month, loc.fit$y[1:400], color = "Linear")) +
+  geom_line(aes(month, loc.fit2$y[1:400], color = "Poly"))
+p2
+
+```
+
+(d)\
+We have smaller bias at the boundary because of the adjustment. As we increase the order and degree, the curve better fitted the data，making the less bias. Thus, the local linear model minimizes the weighted least squares.
+
+Question 3 (a)
+```{r}
+#read csv
+WBushApproval <- read_csv("WBushApproval.csv")
+WBushApproval$Date <- as.Date(WBushApproval$Start,format="%m/%d/%Y")
+
+
+
+date <- WBushApproval$Date
+approve <- WBushApproval$Approve
+loc.fit <- locpoly(as.numeric(date), approve, bandwidth = 10, degree = 1)
+ggplot(WBushApproval,aes(x = Date, y = Approve)) +
+  geom_point() +
+  geom_line(aes(as.Date(x, "1970-01-01"), y, colour = "local - linear"),
+            data = as.data.frame(loc.fit), size = 1)
+
+
+xnew <- as.Date("2005-06-01")
+approx(loc.fit$x, loc.fit$y, xout = as.numeric(xnew))
+
+
+nw.hat <- sapply(as.numeric(date), nwfit, x = as.numeric(date), y = approve, bw = 10)
+xnew <- as.Date("2001-10-01")
+# local linear estimator
+approx(loc.fit$x, loc.fit$y, xout = as.numeric(xnew))
+approx(loc.fit$x, loc.fit$y, xout = as.numeric(xnew))
+
+
+ggplot(WBushApproval,aes(x = Date, y = Approve)) +
+  geom_point() +
+  geom_line(aes(date, nw.hat, color = "NW"), size = 1)
+
+```
